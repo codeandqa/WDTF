@@ -95,6 +95,7 @@
     <Compile Include="..\..\Support Files\TestCaseExecutor.cs">
       <Link>TestCaseExecutor.cs</Link>
     </Compile>
+    <Compile Include="HomepageforGmail.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TestCaseDefintion.cs" />
     <Compile Include="WDTF_TestCase1.cs" />

@@ -16,6 +16,7 @@ using System.Reflection;
 using System.Windows.Forms;
 using System.Drawing;
 using System.Net;
+using System.Net.Mail;
 
 using OpenQA.Selenium;
 using OpenQA.Selenium.Firefox;
@@ -110,13 +111,15 @@ namespace WDGL
                 }
                 else
                 {
-                    loggerInfo.Instance.LogInfo("Unable to find Element By [ " + by + " ]" + " Locator [ " + locator + " ]");
+                    PromptAlertMessage("Unable to find Element By [ " + by + " ]" + " Locator [ " + locator + " ]");
+                    loggerInfo.Instance.LogAppErro(new Exception("Unable to find Element By [ " + by + " ]" + " Locator [ " + locator + " ]"), "", NLog.LogLevel.Error);
                     return null;
                 }
             }
             else
             {
-                loggerInfo.Instance.LogInfo("Unable to find Element By [ " + by + " ]" + " Locator [ " + locator + " ]");
+                PromptAlertMessage("Unable to Error Message is Element By [ " + by + " ]" + " Locator [ " + locator + " ]");
+                loggerInfo.Instance.LogAppErro(new Exception("Unable to Error Message is Element By [ " + by + " ]" + " Locator [ " + locator + " ]"), "", NLog.LogLevel.Error);
                 return null;
             }
         }
@@ -205,7 +208,8 @@ namespace WDGL
                 catch (Exception e)
                 {
                     loggerInfo.Instance.Message(e.Message + System.Environment.NewLine);
-                    loggerInfo.Instance.Message("Unable to find element: [ "+elementPointer+" ]");
+                    e = new Exception(e.Message);
+                    loggerInfo.Instance.LogAppErro(e, "Unable to find element: [ " + elementPointer + " ]", NLog.LogLevel.Error);
                     return null;
                 }
                 
@@ -235,15 +239,23 @@ namespace WDGL
         public static bool ClickElement(SearchBy by, string locator, bool teardownTestIfFail,string logMessage)
         {
             IWebElement element = FindElement(by, locator, string.Empty);
-            try
+            if (element != null)
             {
-                loggerInfo.Instance.Message(logMessage);
-                loggerInfo.Instance.Message("Click on " + locator);
-                return ClickElement(element, teardownTestIfFail);
+                try
+                {
+                    loggerInfo.Instance.Message(logMessage);
+                    loggerInfo.Instance.Message("Click on " + locator);
+                    return ClickElement(element, teardownTestIfFail);
+                }
+                catch (Exception e)
+                {
+                    loggerInfo.Instance.LogAppErro(e, "Unable to Click on Element : [ " + locator + " ]", LogLevel.Error);
+                    return false;
+                }
             }
-            catch (Exception e)
+            else
             {
-                loggerInfo.Instance.LogAppErro(e, "Unable to Click on Element : [ " + locator+" ]", LogLevel.Error);
+                loggerInfo.Instance.LogInfo("Element ["+ element +"] is invalid or not displayed");
                 return false;
             }
         }
@@ -260,10 +272,8 @@ namespace WDGL
             }
             catch (Exception e) 
             {
-                loggerInfo.Instance.LogInfo("Unable to click Elements: " + Element);
-                loggerInfo.Instance.LogAppErro(new Exception(e.Message),"somelocation",LogLevel.Error);// + System.Environment.NewLine);
+                loggerInfo.Instance.LogAppErro(new Exception(e.Message + ": Unable to click Elements: [" + Element + "]"), "", LogLevel.Error);// + System.Environment.NewLine);
                 EmergencyTeardown(testEInfo);
-                
             }
             return false;
         }
@@ -423,6 +433,7 @@ namespace WDGL
         {
             if (!t.EndToEnd)
             {
+                TakeScreenShot(t);
                 wdgl wd = new wdgl(t);
                 loggerInfo.Instance.LogWarning("killing the process in middle of the test");
                 IWebElement currEl = _driver.SwitchTo().ActiveElement();
@@ -446,14 +457,17 @@ namespace WDGL
         
         public static void TakeScreenShot(TestEnvInfo testInfo)
         {
-            Screenshot ss = ((ITakesScreenshot)_driver).GetScreenshot();
-            string screenshot = ss.AsBase64EncodedString;
-            byte[] screenshotAsByteArray = ss.AsByteArray;
-            ss.SaveAsFile(AutomationLogging.newLocationInResultFolder+"\\"+testInfo.testClassName+"_"+AutomationLogging.countOfError.ToString()+".jpg", System.Drawing.Imaging.ImageFormat.Jpeg);
-            string pageSource = _driver.PageSource;
-            using (StreamWriter outfile = new StreamWriter(AutomationLogging.newLocationInResultFolder+"\\"+testInfo.testClassName+"_"+AutomationLogging.countOfError.ToString()+".html"))
+            if (AutomationLogging.countOfError > 0)
             {
-                outfile.Write(pageSource.ToString());
+                Screenshot ss = ((ITakesScreenshot)_driver).GetScreenshot();
+                string screenshot = ss.AsBase64EncodedString;
+                byte[] screenshotAsByteArray = ss.AsByteArray;
+                ss.SaveAsFile(AutomationLogging.newLocationInResultFolder + "\\" + testInfo.testClassName + "_" + AutomationLogging.countOfError.ToString() + ".jpg", System.Drawing.Imaging.ImageFormat.Jpeg);
+                string pageSource = _driver.PageSource;
+                using (StreamWriter outfile = new StreamWriter(AutomationLogging.newLocationInResultFolder + "\\" + testInfo.testClassName + "_" + AutomationLogging.countOfError.ToString() + ".html"))
+                {
+                    outfile.Write(pageSource.ToString());
+                }
             }
         }
 
@@ -545,31 +559,37 @@ namespace WDGL
         #endregion
 
         #region Recording methods
-        public static void StartRecordingVideo(TestEnvInfo testInfo)
+        public static void StartRecordingVideo()
         {
-            job = new ScreenCaptureJob();
-            job.CaptureRectangle = Screen.PrimaryScreen.Bounds;
-            job.ShowFlashingBoundary = true;
-            job.OutputPath = AutomationLogging.newLocationInResultFolder;
-            job.Start();
+            if (testEInfo.isRecording)
+            {
+                job = new ScreenCaptureJob();
+                job.CaptureRectangle = Screen.PrimaryScreen.Bounds;
+                job.ShowFlashingBoundary = true;
+                job.OutputPath = AutomationLogging.newLocationInResultFolder;
+                job.Start();
+            }
         }
 
-        public static void StopRecordingVideo(TestEnvInfo testInfo)
+        public static void StopRecordingVideo()
         {
-            string filename = job.ScreenCaptureFileName;
-            job.Stop();
-            if (AutomationLogging.countOfError > 0)
+            if (testEInfo.isRecording)
             {
-                MediaItem src = new MediaItem(filename);
-                Job jb = new Job();
-                jb.MediaItems.Add(src);
-                jb.ApplyPreset(Presets.VC1HD720pVBR);
-                jb.OutputDirectory = AutomationLogging.newLocationInResultFolder;
-                string output = ((Microsoft.Expression.Encoder.JobBase)(jb)).ActualOutputDirectory;
-                jb.Encode();
+                string filename = job.ScreenCaptureFileName;
+                job.Stop();
+                if (AutomationLogging.countOfError > 0)
+                {
+                    MediaItem src = new MediaItem(filename);
+                    Job jb = new Job();
+                    jb.MediaItems.Add(src);
+                    jb.ApplyPreset(Presets.VC1HD720pVBR);
+                    jb.OutputDirectory = AutomationLogging.newLocationInResultFolder;
+                    string output = ((Microsoft.Expression.Encoder.JobBase)(jb)).ActualOutputDirectory;
+                    jb.Encode();
+                }
+
+                File.Delete(filename);
             }
-            
-            File.Delete(filename);
         }
         #endregion 
 
@@ -579,29 +599,28 @@ namespace WDGL
             StringBuilder verificationErrors = new StringBuilder();
             verificationErrors.AppendLine(System.Environment.NewLine);
             verificationErrors.AppendLine("#####################  Test Header ####################");
-            verificationErrors.AppendLine(" StartTime:          " + DateTime.Now.ToLongTimeString());
+            verificationErrors.AppendLine(" baseURL:            " + testEnvInfo.baseURL);
             verificationErrors.AppendLine(" GUID:               " + testEnvInfo.guid);
-            verificationErrors.AppendLine(" Timeout:            " + testEnvInfo.implicitTimeout + " sec");
-            verificationErrors.AppendLine(" ParentBrowser:      " + testEnvInfo.parentBrowser);
+            verificationErrors.AppendLine(" CurrentBrowser:     " + testEnvInfo.parentBrowser);
             verificationErrors.AppendLine(" TestUser:           " + testEnvInfo.testUser);
             verificationErrors.AppendLine(" TestPassword:       " + testEnvInfo.testPassword);
-            verificationErrors.AppendLine(" TestEmail:          " + testEnvInfo.testEmail);
-            verificationErrors.AppendLine(" baseURL:            " + testEnvInfo.baseURL);
-            verificationErrors.AppendLine(" DeleteOldLogfiles:  " + testEnvInfo.deleteOldLogFiles);
+            verificationErrors.AppendLine(" TestEmail:          " + testEnvInfo.email);
+            verificationErrors.AppendLine(" Timeout:            " + testEnvInfo.implicitTimeout + " sec");
+            verificationErrors.AppendLine(" StartTime:          " + DateTime.Now.ToLongTimeString());
             verificationErrors.AppendLine("#######################################################");
+            loggerInfo loggerInfo = new WDGL.loggerInfo();
+            
             loggerInfo.Instance.LogInfo(verificationErrors.ToString());
             loggerInfo.Instance.LogInfo("Start SetupTest");
-            StartRecordingVideo(testEnvInfo);
+            StartRecordingVideo();
             _driver = testEnvInfo.StratDriver();
             _driver.Manage().Timeouts().ImplicitlyWait(TimeSpan.FromSeconds(Convert.ToInt16(testEnvInfo.implicitTimeout)));
             string baseURL = testEnvInfo.GetURL();
-            
-            
         }
         
         public void TeardownTest(TestEnvInfo testEnvInfo)
         {
-            StopRecordingVideo(testEnvInfo);
+            StopRecordingVideo();
             loggerInfo.Instance.Message("TearDown the Test");
             try
             {
@@ -612,16 +631,51 @@ namespace WDGL
             }
             catch (Exception)
             {
+                
                 //loggerInfo.Instance.Message("Unable to TearDown the Test");
             }
+            
+            //SendEmailUsingGmail();
         }
         #endregion
 
-        //public void Dispose()
-        //{
-        //    GC.SuppressFinalize(this);
-        //}
-        
+        public static void SendEmailUsingGmail()
+        {
+            if (AutomationLogging.countOfError >0 && testEInfo.sendResult)
+            {
+                loggerInfo.Instance.LogInfo("Email Results and result files to "+testEInfo.reportingEmail);
+                MailMessage mail = new MailMessage();
+                SmtpClient SmtpServer = new SmtpClient("smtp.gmail.com");
+                mail.From = new MailAddress("shahi.adityas@gmail.com");
+                mail.To.Add("shahi.aditya@gmail.com");
+                mail.Subject = "WebDriver Test Result: "+"[" + AutomationLogging.countOfError + "] Error/Failed TestCase: " + testEInfo.testClassName;
+                mail.Body = "This is for testing SMTP mail from GMAIL";
+                System.Net.Mail.Attachment attachment;
+                DirectoryInfo dirInfo = new DirectoryInfo(AutomationLogging.newLocationInResultFolder);
+                string[] extensions = new[] { ".jpg", ".html", ".txt" };
+
+                FileInfo[] files = dirInfo.GetFiles()
+                                          .Where(f => extensions.Contains(f.Extension.ToLower()))
+                                          .ToArray();
+                foreach (FileInfo item in files)
+                {
+                    attachment = new System.Net.Mail.Attachment(item.FullName);
+                    mail.Attachments.Add(attachment);
+                }
+                SmtpServer.Port = 587;
+                SmtpServer.Credentials = new System.Net.NetworkCredential(testEInfo.email, testEInfo.password);
+                SmtpServer.EnableSsl = true;
+                SmtpServer.Send(mail);
+            }
+        }
+
+        public static void PromptAlertMessage(string message)
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.FileName = "C:\\WDTF\\ThirdPartyTools\\AlertMessage.exe";
+            startInfo.Arguments = message;
+            Process.Start(startInfo);
+        }
     }
     
     public sealed class TestEnvInfo
@@ -646,10 +700,12 @@ namespace WDGL
         public string parentBrowser = System.Configuration.ConfigurationManager.AppSettings["ParentBrowser"];
         public string testUser = System.Configuration.ConfigurationManager.AppSettings["TestUser"];
         public string testPassword = System.Configuration.ConfigurationManager.AppSettings["TestPassword"];
-        public string testEmail = System.Configuration.ConfigurationManager.AppSettings["TestEmail"];
+        public string email = System.Configuration.ConfigurationManager.AppSettings["Email"];
+        public string password = System.Configuration.ConfigurationManager.AppSettings["Password"];
+        public string reportingEmail = System.Configuration.ConfigurationManager.AppSettings["ResultReportingEmail"];
         public string networkLocation = System.Configuration.ConfigurationManager.AppSettings["NetworkLocation"];
         public string baseURL = System.Configuration.ConfigurationManager.AppSettings["baseURL"];
-        public string killOtherBrowser = System.Configuration.ConfigurationManager.AppSettings["sendlog"];
+        public bool sendResult = System.Configuration.ConfigurationManager.AppSettings["sendlog"] == "true" ? true : false;
         public string deleteOldLogFiles = System.Configuration.ConfigurationManager.AppSettings["DeleteOldLogfiles"];
         public bool isRecording = System.Configuration.ConfigurationManager.AppSettings["RecordingWhileFailure"]=="true"?true:false;
         public bool EndToEnd = System.Configuration.ConfigurationManager.AppSettings["EndToEndTesting"] == "true" ? true : false;
@@ -713,7 +769,7 @@ namespace WDGL
         }
         public string GetTestEmail()
         {
-            return testEmail;
+            return email;
         }
         public string GetNetworkLocation()
         {
@@ -734,6 +790,7 @@ namespace WDGL
                 {
                     _logger = new AutomationLogging();
                 }
+                
                 return _logger;
             }
         }
@@ -755,7 +812,7 @@ namespace WDGL
 
             string resultFolder = @"C:/WDTF/TestResult";
             string asm = Assembly.GetCallingAssembly().FullName;
-            string logFormat = string.Format("{0:yyMMddhhmmss}", DateTime.Now);
+            string logFormat = string.Format("{0:yyyy-MM-dd-hh-mm-ss}", DateTime.Now);
             newLocationInResultFolder = resultFolder + "/" + currentGuid + "_" + logFormat;
             DirectoryInfo directoryInfo = new DirectoryInfo(newLocationInResultFolder);
             if (!directoryInfo.Exists)
@@ -774,7 +831,7 @@ namespace WDGL
             //===========================================================================================//
             FileTarget fileTarget = new FileTarget();
             fileTarget.Layout = "${time} | ${level}  | ${stacktrace:topFrames=2} | ${message} ";
-            fileTarget.FileName = newLocationInResultFolder + "/" + className + "_" + logFormat + ".txt";
+            fileTarget.FileName = newLocationInResultFolder + "/" + className + "_" + logFormat + DateTime.Now.Second + ".txt";
             config.AddTarget("file", fileTarget);
             LoggingRule fileInfo = new LoggingRule("*", LogLevel.Info, fileTarget);
             config.LoggingRules.Add(fileInfo);
@@ -792,7 +849,7 @@ namespace WDGL
             mailTarget.SmtpPassword = "passwd@123";
             mailTarget.EnableSsl = true;
             mailTarget.From = "donethedeal@gmail.com";
-            mailTarget.To = "shahi.aditya@example.com";
+            mailTarget.To = "shahi.aditya@gmail.com";
             mailTarget.CC = "";
             LoggingRule mailInfo = new LoggingRule("*", LogLevel.Info, mailTarget);
             config.LoggingRules.Add(mailInfo);
@@ -803,7 +860,6 @@ namespace WDGL
 
             // Step 4. Define rules
             LogManager.Configuration = config;
-
         }
         public void LogDebug(string Message)
         {
@@ -819,13 +875,16 @@ namespace WDGL
         }
         public void LogAppErro(Exception e, string appLocation, LogLevel logLevel)
         {
+           
             logger.Error("Error Message is: {0}", e.Message);
             countOfError += 1;
-            
         }
         public void Message(string message)
         {
             logger.Info(message);
+        }
+        public void Email(string message)
+        {
         }
     }
 

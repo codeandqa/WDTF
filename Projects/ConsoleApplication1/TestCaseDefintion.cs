@@ -10,6 +10,7 @@ namespace WDTF
         public static readonly TestCaseDefinition[] TEST_CASES = 
         { 
            new WDTF_TestCase1(),
+           new HomepageforGmail()
         };
     }
 }

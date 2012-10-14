@@ -26,18 +26,20 @@ namespace WDTF
             string browser = string.Empty;
             Program p = new Program();
             List<TestCaseDefinition> input = new List<TestCaseDefinition>();
-
+            List<string> inputBrowser = new List<string>();
+            string pattern = @"(\w+)(:)(\w+)";
             argData argData = new argData();
             List<argData> listOfArg = new List<argData>();
-            
-            
             TestCaseDefinition[] testcaseList = WDTF.TestCaseList.TEST_CASES;
+            int m = 0;
+            t.guid = string.Format("{0:yyyyMMddmmss}", DateTime.Now);
+            
+            
             if (args.Length == 0)
             {
                 foreach (TestCaseDefinition item in testcaseList)
                 {
                     input.Add(item);
-
                 }
                 browser = t.parentBrowser;
             }
@@ -45,21 +47,22 @@ namespace WDTF
             {
                 foreach (string arg in args)
                 {
-                   // var out = from testcaseList in 
+                    string validReg = Regex.Match(arg, pattern).Value;
+                    if (validReg !="")
+
                     foreach (TestCaseDefinition item in testcaseList)
                     {
                         string namespace_tc = item.ToString();
                         string tc = namespace_tc.Substring(namespace_tc.LastIndexOf('.') + 1);
-                        if (tc == arg)
+                        //if (tc == arg)
+                        if (tc == validReg.Split(':')[0])
                         {
-                            if (!input.Contains(item))
-                            {
                                 input.Add(item);
-                            }
+                                inputBrowser.Add(validReg.Split(':')[1]);
                         }
                         else
                         {
-                            if (arg.ToLower() =="firefox")
+                            if (arg.ToLower() == "firefox")
                             {
                                 browser = arg.ToLower();
                             }
@@ -85,23 +88,26 @@ namespace WDTF
                 foreach (TestCaseDefinition item in testcaseList)
                 {
                     input.Add(item);
+                    inputBrowser.Add(t.GetBrowser());
                 }
             }
-
             foreach (TestCaseDefinition item in input)
             {
-               t.parentBrowser = browser;
-                AutomationLogging.className = item.ToString();
-                t.testClassName = AutomationLogging.className;
-                nav.SetupTest(t);
-                item.ExecuteTest(t);
-                nav.TeardownTest(t);
+                AutomationLogging.countOfError = 0;
+                t.parentBrowser = inputBrowser[m].ToLower();
+                m++;
+                if (t.parentBrowser == "googlechrome" ||t.parentBrowser == "firefox" ||t.parentBrowser == "iexplore")
+                {
+                    AutomationLogging.className = item.ToString();
+                    t.testClassName = AutomationLogging.className;
+                    nav.SetupTest(t);
+                    item.ExecuteTest(t);
+                    nav.TeardownTest(t);
+                }
             }
-
-            
-
+           
+            wdgl.SendEmailUsingGmail();
         }
-        
     }
     public interface TestCaseDefinition
     {

@@ -24,7 +24,7 @@ using System.Windows.Forms;
 
 namespace WDTF
 {
-    public class WDTF_TestCase1 : TestCaseDefinition
+    public class HomepageforGmail : TestCaseDefinition
     {
         private IWebDriver driver;
         [TestCase]
@@ -32,18 +32,14 @@ namespace WDTF
         {
             driver = testEnv.driver;//This is going to be there in code.
             loggerInfo.Instance.Message("Description of Test............");
-            wdgl.OpenURL("http://www.yahoo.com");
-            wdgl.ClickElement(SearchBy.CssSelector, "a[class='y-mast-link images']:contains(Imags)", "");
-
-           
+            wdgl.OpenURL(testEnv.GetURL());
+            wdgl.ClickElement(SearchBy.CssSelector, "a:contains(Lamps)", "");
             /*
             Start Coding here.
             Example:
             wdgl.ClickElement(SearchBy.CssSelector, "div[class='dCalssName']", "Comment");
             */
-            string folder = AutomationLogging.resultdirectory;
             loggerInfo.Instance.Message("End statement of Test..........");
-            
         }
 
     }
