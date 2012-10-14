@@ -113,6 +113,7 @@ namespace WDGL
                 {
                     PromptAlertMessage("Unable to find Element By [ " + by + " ]" + " Locator [ " + locator + " ]");
                     loggerInfo.Instance.LogAppErro(new Exception("Unable to find Element By [ " + by + " ]" + " Locator [ " + locator + " ]"), "", NLog.LogLevel.Error);
+                    TakeScreenShot(testEInfo);
                     return null;
                 }
             }
@@ -120,6 +121,7 @@ namespace WDGL
             {
                 PromptAlertMessage("Unable to Error Message is Element By [ " + by + " ]" + " Locator [ " + locator + " ]");
                 loggerInfo.Instance.LogAppErro(new Exception("Unable to Error Message is Element By [ " + by + " ]" + " Locator [ " + locator + " ]"), "", NLog.LogLevel.Error);
+                TakeScreenShot(testEInfo);
                 return null;
             }
         }
@@ -231,6 +233,7 @@ namespace WDGL
                 }
 
                 elements = new ReadOnlyCollection<IWebElement>(list);
+                
                 loggerInfo.Instance.LogInfo("Found '" + elements.Count + "' elements");
             }
             return elements;
@@ -255,7 +258,8 @@ namespace WDGL
             }
             else
             {
-                loggerInfo.Instance.LogInfo("Element ["+ element +"] is invalid or not displayed");
+                Exception e = new Exception("Click Element with By [ " + by + " ]" + " Locator [ " + locator + " ]");
+                loggerInfo.Instance.LogAppErro(e, "", LogLevel.Error);
                 return false;
             }
         }
@@ -599,6 +603,7 @@ namespace WDGL
             StringBuilder verificationErrors = new StringBuilder();
             verificationErrors.AppendLine(System.Environment.NewLine);
             verificationErrors.AppendLine("#####################  Test Header ####################");
+            verificationErrors.AppendLine(" baseURL:            " + testEInfo.testClassName);
             verificationErrors.AppendLine(" baseURL:            " + testEnvInfo.baseURL);
             verificationErrors.AppendLine(" GUID:               " + testEnvInfo.guid);
             verificationErrors.AppendLine(" CurrentBrowser:     " + testEnvInfo.parentBrowser);
@@ -606,9 +611,9 @@ namespace WDGL
             verificationErrors.AppendLine(" TestPassword:       " + testEnvInfo.testPassword);
             verificationErrors.AppendLine(" TestEmail:          " + testEnvInfo.email);
             verificationErrors.AppendLine(" Timeout:            " + testEnvInfo.implicitTimeout + " sec");
-            verificationErrors.AppendLine(" StartTime:          " + DateTime.Now.ToLongTimeString());
+            verificationErrors.AppendLine(" StartTime:          " + DateTime.Now.ToString());
             verificationErrors.AppendLine("#######################################################");
-            loggerInfo loggerInfo = new WDGL.loggerInfo();
+            //loggerInfo loggerInfo = new WDGL.loggerInfo();
             
             loggerInfo.Instance.LogInfo(verificationErrors.ToString());
             loggerInfo.Instance.LogInfo("Start SetupTest");
@@ -620,12 +625,26 @@ namespace WDGL
         
         public void TeardownTest(TestEnvInfo testEnvInfo)
         {
+            StringBuilder verificationErrors = new StringBuilder();
+            verificationErrors.AppendLine(System.Environment.NewLine);
             StopRecordingVideo();
             loggerInfo.Instance.Message("TearDown the Test");
             try
             {
                 _driver = testEnvInfo.driver;
-                TakeScreenShot(testEnvInfo);
+                if (AutomationLogging.countOfError > 0)
+                {
+                    verificationErrors.AppendLine("******************Result:Fail with {" + AutomationLogging.countOfError + "} Error(s)******************");
+                    loggerInfo.Instance.LogInfo(verificationErrors.ToString());
+
+                }
+                else
+                {
+                    verificationErrors.AppendLine("******************Result:Pass with No Error******************");
+                    loggerInfo.Instance.LogInfo(verificationErrors.ToString());
+                }
+                //TakeScreenShot(testEnvInfo);
+                AutomationLogging.countOfError = 0;
                 _driver.Quit();
                 _driver.Dispose();
             }
@@ -641,20 +660,26 @@ namespace WDGL
 
         public static void SendEmailUsingGmail()
         {
-            if (AutomationLogging.countOfError >0 && testEInfo.sendResult)
+            DirectoryInfo dirInfo = new DirectoryInfo(AutomationLogging.newLocationInResultFolder);
+            string[] extensions = new[] { ".jpg" };
+
+            FileInfo[] files = dirInfo.GetFiles()
+                                      .Where(f => extensions.Contains(f.Extension.ToLower()))
+                                      .ToArray();
+            if (files.Length > 0 && testEInfo.sendResult)
             {
                 loggerInfo.Instance.LogInfo("Email Results and result files to "+testEInfo.reportingEmail);
                 MailMessage mail = new MailMessage();
                 SmtpClient SmtpServer = new SmtpClient("smtp.gmail.com");
                 mail.From = new MailAddress("shahi.adityas@gmail.com");
                 mail.To.Add("shahi.aditya@gmail.com");
-                mail.Subject = "WebDriver Test Result: "+"[" + AutomationLogging.countOfError + "] Error/Failed TestCase: " + testEInfo.testClassName;
+                mail.Subject = "WebDriver Test Result: " + "[" + files.Length +"] Error/Failed TestCase: " + testEInfo.testClassName;
                 mail.Body = "This is for testing SMTP mail from GMAIL";
                 System.Net.Mail.Attachment attachment;
-                DirectoryInfo dirInfo = new DirectoryInfo(AutomationLogging.newLocationInResultFolder);
-                string[] extensions = new[] { ".jpg", ".html", ".txt" };
+                dirInfo = new DirectoryInfo(AutomationLogging.newLocationInResultFolder);
+                extensions = new[] { ".jpg", ".html", ".txt" };
 
-                FileInfo[] files = dirInfo.GetFiles()
+                files = dirInfo.GetFiles()
                                           .Where(f => extensions.Contains(f.Extension.ToLower()))
                                           .ToArray();
                 foreach (FileInfo item in files)

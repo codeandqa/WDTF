@@ -32,8 +32,7 @@ namespace WDTF
             List<argData> listOfArg = new List<argData>();
             TestCaseDefinition[] testcaseList = WDTF.TestCaseList.TEST_CASES;
             int m = 0;
-            t.guid = string.Format("{0:yyyyMMddmmss}", DateTime.Now);
-            
+            t.guid = string.Format("{0:GUIDyyyyMMddmmss}", DateTime.Now);
             
             if (args.Length == 0)
             {
@@ -93,7 +92,7 @@ namespace WDTF
             }
             foreach (TestCaseDefinition item in input)
             {
-                AutomationLogging.countOfError = 0;
+                //AutomationLogging.countOfError = 0;
                 t.parentBrowser = inputBrowser[m].ToLower();
                 m++;
                 if (t.parentBrowser == "googlechrome" ||t.parentBrowser == "firefox" ||t.parentBrowser == "iexplore")
