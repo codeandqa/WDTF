@@ -32,10 +32,10 @@ namespace WDTF
         {
             driver = testEnv.driver;//This is going to be there in code.
             loggerInfo.Instance.Message("Description of Test............");
-            wdgl.OpenURL(testEnv.GetURL());
             /*
             Start Coding here.
             Example:
+            wdgl.OpenURL(testEnv.GetURL());
             wdgl.ClickElement(SearchBy.CssSelector, "div[class='dCalssName']", "Comment");
             */
             loggerInfo.Instance.Message("End statement of Test..........");

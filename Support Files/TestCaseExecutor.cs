@@ -39,8 +39,9 @@ namespace WDTF
                 foreach (TestCaseDefinition item in testcaseList)
                 {
                     input.Add(item);
+                    inputBrowser.Add(t.parentBrowser);
                 }
-                browser = t.parentBrowser;
+                //browser = t.parentBrowser;
             }
             else
             {
@@ -77,7 +78,7 @@ namespace WDTF
                             {
                                 browser = t.parentBrowser;
                             }
-                            // loggerInfo.Instance.Message("Mismatched argument:"+arg); //TODO:handle non matching argument.
+                            // loggerInfo.Instance.Message("Mismatched argument:"+arg); //TODO: handle non matching argument.
                         }
                     }
                 }
@@ -87,12 +88,11 @@ namespace WDTF
                 foreach (TestCaseDefinition item in testcaseList)
                 {
                     input.Add(item);
-                    inputBrowser.Add(t.GetBrowser());
+                    inputBrowser.Add(t.parentBrowser);
                 }
             }
             foreach (TestCaseDefinition item in input)
             {
-                //AutomationLogging.countOfError = 0;
                 t.parentBrowser = inputBrowser[m].ToLower();
                 m++;
                 if (t.parentBrowser == "googlechrome" ||t.parentBrowser == "firefox" ||t.parentBrowser == "iexplore")

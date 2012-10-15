@@ -76,9 +76,6 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="ThoughtWorks.Selenium.Core">
-      <HintPath>..\..\ThirdPartyTools\net40\ThoughtWorks.Selenium.Core.dll</HintPath>
-    </Reference>
     <Reference Include="WDGL, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>D:\Project\WebdriverProject\WebdriverNavigation\bin\Release\WDGL.dll</HintPath>

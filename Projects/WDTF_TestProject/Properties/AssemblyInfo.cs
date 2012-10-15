@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("WDTF_TestProject11")]
+[assembly: AssemblyTitle("WDTF_TestProject")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Hewlett-Packard")]
-[assembly: AssemblyProduct("WDTF_TestProject11")]
+[assembly: AssemblyProduct("WDTF_TestProject")]
 [assembly: AssemblyCopyright("Copyright © Hewlett-Packard 2012")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
