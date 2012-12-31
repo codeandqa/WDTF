@@ -17,7 +17,6 @@ using System.Windows.Forms;
 using System.Drawing;
 using System.Net;
 using System.Net.Mail;
-
 using OpenQA.Selenium;
 using OpenQA.Selenium.Firefox;
 using OpenQA.Selenium.Android;
@@ -76,7 +75,7 @@ namespace WDGL
         FALSE
     };
     
-    public sealed class wdgl//:IDisposable
+    public sealed class wdgl //: IKeyword
     {
         static int testTimeout;
         static IWebDriver _driver;
@@ -91,6 +90,7 @@ namespace WDGL
 
         public static void OpenURL(string url)
         {
+            loggerInfo.Instance.LogInfo("Open url: " + url);
             _driver.Navigate().GoToUrl(url);
         }
         public static IWebElement FindElement(SearchBy by, string locator)
@@ -199,7 +199,7 @@ namespace WDGL
                     elementPointer = OpenQA.Selenium.By.XPath(baseIdentifier);
                     break;
             };
-
+            
             DateTime endTime = DateTime.Now.AddSeconds(10);
             while (elements.Count == 0 && endTime > DateTime.Now)
             {
@@ -598,6 +598,7 @@ namespace WDGL
         #endregion 
 
         #region Script Executor
+        [SetUp]
         public void SetupTest(TestEnvInfo testEnvInfo)
         {
             StringBuilder verificationErrors = new StringBuilder();
@@ -623,6 +624,7 @@ namespace WDGL
             string baseURL = testEnvInfo.GetURL();
         }
         
+        [TearDown]
         public void TeardownTest(TestEnvInfo testEnvInfo)
         {
             StringBuilder verificationErrors = new StringBuilder();
@@ -666,7 +668,7 @@ namespace WDGL
             FileInfo[] files = dirInfo.GetFiles()
                                       .Where(f => extensions.Contains(f.Extension.ToLower()))
                                       .ToArray();
-            if (files.Length > 0 && testEInfo.sendResult)
+            if (testEInfo.sendResult || files.Length > 0)
             {
                 loggerInfo.Instance.LogInfo("Email Results and result files to "+testEInfo.reportingEmail);
                 MailMessage mail = new MailMessage();
@@ -690,7 +692,14 @@ namespace WDGL
                 SmtpServer.Port = 587;
                 SmtpServer.Credentials = new System.Net.NetworkCredential(testEInfo.email, testEInfo.password);
                 SmtpServer.EnableSsl = true;
-                SmtpServer.Send(mail);
+                try
+                {
+                    SmtpServer.Send(mail);
+                }
+                catch
+                {
+                    
+                }
             }
         }
 
@@ -746,7 +755,7 @@ namespace WDGL
         {
             if (parentBrowser.ToLower().Equals("Firefox".ToLower()))
             {
-                FirefoxProfile firefoxProfile = new FirefoxProfile(@"C:\FFProfile", true);
+                FirefoxProfile firefoxProfile = new FirefoxProfile(@"", false);
                 firefoxProfile.AddExtension(@"C:\WDTF\ThirdPartyTools\firebug-1.9.2.xpi");
                 firefoxProfile.SetPreference("extensions.firebug.currentVersion", "1.9.2"); // Avoid startup screen
                 firefoxProfile.EnableNativeEvents = true;
@@ -856,7 +865,7 @@ namespace WDGL
             //===========================================================================================//
             FileTarget fileTarget = new FileTarget();
             fileTarget.Layout = "${time} | ${level}  | ${stacktrace:topFrames=2} | ${message} ";
-            fileTarget.FileName = newLocationInResultFolder + "/" + className + "_" + logFormat + DateTime.Now.Second + ".txt";
+            fileTarget.FileName = newLocationInResultFolder + "/" + className + "_" + logFormat + DateTime.Now.Second + ".log";
             config.AddTarget("file", fileTarget);
             LoggingRule fileInfo = new LoggingRule("*", LogLevel.Info, fileTarget);
             config.LoggingRules.Add(fileInfo);
@@ -915,11 +924,20 @@ namespace WDGL
 
     public sealed class VerifyLib
     {
-        public static eResult VerifyText(string[] actualText, string[] expectedText, string requirementTags)
+        public static void AssertText(string actualText, string expectedText, StringComparison comparisonType)
         {
-            return eResult.TRUE;
+           Assert.IsTrue(actualText.Equals(expectedText, comparisonType));
+           loggerInfo.Instance.LogInfo("Verification Point :"+System.Environment.NewLine + "Expected Text : " + expectedText + System.Environment.NewLine +
+                                       "Actual Text : " + actualText + System.Environment.NewLine+
+                                       "Result : Pass"+System.Environment.NewLine);
         }
-
+        public static void AssertNumber(int actualNum, int expectedNum)
+        {
+            Assert.IsTrue(actualNum == expectedNum);
+            loggerInfo.Instance.LogInfo("Verification Point: "+System.Environment.NewLine + "Expected Num : " + expectedNum + System.Environment.NewLine +
+                                       "Actual Num : " + actualNum + System.Environment.NewLine +
+                                       "Result : Pass"+System.Environment.NewLine);
+        }
         public static string[] VerifyAndReturnBrokenImage(IWebDriver driver)
         {
             List<string> invalidSrc = new List<string>();
