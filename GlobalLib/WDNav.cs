@@ -14,9 +14,9 @@ using NLog.Targets;
 using NLog.Targets.Wrappers;
 using System.Reflection;
 using System.Windows.Forms;
-using System.Drawing;
 using System.Net;
 using System.Net.Mail;
+using System.Configuration;
 
 using OpenQA.Selenium;
 using OpenQA.Selenium.Firefox;
@@ -76,32 +76,32 @@ namespace WDGL
         FALSE
     };
     
-    public sealed class wdgl//:IDisposable
+    public sealed class wdgl //: IKeyword
     {
-        static int testTimeout;
-        static IWebDriver _driver;
-        static TestEnvInfo testEInfo = null;
-        static ScreenCaptureJob job;
+        private static int testTimeout;
+        private static IWebDriver _driver;
+        private static TestEnvInfo testEInfo = null;
+        private static ScreenCaptureJob job;
 
         public wdgl(TestEnvInfo t)
         {
            testEInfo = t;
            testTimeout = Convert.ToInt32(t.ExplicitTimeout());
         }
-
         public static void OpenURL(string url)
         {
+            loggerInfo.Instance.LogInfo("Open url: " + url);
             _driver.Navigate().GoToUrl(url);
         }
         public static IWebElement FindElement(SearchBy by, string locator)
         {
             loggerInfo.Instance.LogInfo("Find By [ " + by + " ]" + " Locator [ " + locator + " ]");
-
-            return FindElement(by, locator, 2);//TODO: Ideally we should be using 0 but for now its 2 sec
+            IWebElement parentElement = null;
+            return FindElement(by, locator, 2, parentElement);//TODO: Ideally we should be using 0 but for now its 2 sec
         }
-        public static IWebElement FindElement(SearchBy by, string locator, int timeOut)
+        public static IWebElement FindElement(SearchBy by, string locator, int timeOut, IWebElement parentElement = null)
         {
-            ReadOnlyCollection<IWebElement> SearchElements = FindElements(by, locator, timeOut);
+            ReadOnlyCollection<IWebElement> SearchElements = FindElements(by, locator, timeOut, parentElement);
             if (SearchElements != null)
             {
                 if (SearchElements.Count > 0)
@@ -125,17 +125,18 @@ namespace WDGL
                 return null;
             }
         }
-        public static IWebElement FindElement(SearchBy by, string locator, string logMessage)
+        public static IWebElement FindElement(SearchBy by, string locator, string logMessage, IWebElement parentElement = null)
         {
             loggerInfo.Instance.LogInfo(logMessage);
-            return FindElement(by, locator, testTimeout);
+            return FindElement(by, locator, testTimeout,parentElement);
         }
         public static ReadOnlyCollection<IWebElement> FindElements(SearchBy by, string locator)
         {
             loggerInfo.Instance.LogInfo("Find Elements By [ " + by + " ]" + " Locator [ " + locator + " ]");
-            return FindElements(by, locator, testTimeout);   
+            IWebElement parentElement = null;
+            return FindElements(by, locator, testTimeout,parentElement);   
         }
-        public static ReadOnlyCollection<IWebElement> FindElements(SearchBy by, string locator, int timeout)
+        public static ReadOnlyCollection<IWebElement> FindElements(SearchBy by, string locator, int timeout, IWebElement parentElement = null)
         {
             loggerInfo.Instance.LogInfo("Find Elements By [ " + by+ " ]" + " Locator [ " + locator + " ]");
             List<IWebElement> list = new List<IWebElement>();
@@ -199,13 +200,21 @@ namespace WDGL
                     elementPointer = OpenQA.Selenium.By.XPath(baseIdentifier);
                     break;
             };
-
+            
             DateTime endTime = DateTime.Now.AddSeconds(10);
             while (elements.Count == 0 && endTime > DateTime.Now)
             {
                 try
                 {
-                    elements = _driver.FindElements(elementPointer);
+                    if (parentElement == null)
+                    {
+                        elements = _driver.FindElements(elementPointer);
+                    }
+                    else
+                    {
+                        elements = parentElement.FindElements(elementPointer);
+                    }
+                    
                 }
                 catch (Exception e)
                 {
@@ -298,14 +307,12 @@ namespace WDGL
                 ClickElement(element,false);
                 loggerInfo.Instance.Message("Type '" + textToType + "' in Elements with By [ " + by + " ]" + " Locator [ " + locator + " ]");
                 element.SendKeys(textToType+postString);
-               
             }
             catch (Exception e)
             {
                 e = new Exception(e.Message);
                 loggerInfo.Instance.LogAppErro(e, "Unable to Type '" + textToType + "' in Elements with By [ " + by + " ]" + " Locator [ " + locator + " ]", NLog.LogLevel.Error);
                 return;
-                
             }
         }
         public static void TypeElement(SearchBy by, string locator, string textToType, string logMessage)
@@ -313,6 +320,27 @@ namespace WDGL
             TypeElement(by, locator, textToType, logMessage, false);
         }
         
+        public static void FillInFields(params string[] locatorAndInputCombinationWithDollarSignDelimiter)//"Locaotor$dataToFill";
+        {
+            foreach (string fieldSet in locatorAndInputCombinationWithDollarSignDelimiter)
+            {
+                if (fieldSet.Contains('['))
+                {
+                    TypeElement(SearchBy.CssSelector, fieldSet.Split('$')[0], fieldSet.Split('$')[0], "Type " + fieldSet.Split('$')[1] + " in input area " + fieldSet.Split('$')[0]);
+                }
+                else if (fieldSet.Contains('\\'))
+                {
+                    TypeElement(SearchBy.XPath, fieldSet.Split('$')[0], fieldSet.Split('$')[0], "Type " + fieldSet.Split('$')[1] + " in input area " + fieldSet.Split('$')[0]);
+                }
+                else
+	
+                {
+                    TypeElement(SearchBy.Id, fieldSet.Split('$')[0], fieldSet.Split('$')[0], "Type " + fieldSet.Split('$')[1] + " in input area " + fieldSet.Split('$')[0]);
+                }
+                //TODO: handle other situation as per case.
+            }
+        }
+
         public static bool IsElementVisible(SearchBy by, string locator, string logMessage)
         {
             loggerInfo.Instance.LogInfo("Check if Visible: Elements By [ " + by + " ]" + " Locator [ " + locator + " ]");
@@ -328,7 +356,6 @@ namespace WDGL
             }
             catch (Exception e)
             {
-                
                 e = new Exception(e.Message);
                 loggerInfo.Instance.LogAppErro(e,"Unable to find Element By [ " + by + " ]" + " Locator [ " + locator + " ]",NLog.LogLevel.Error);
                 return false;
@@ -337,7 +364,6 @@ namespace WDGL
         }
         public static bool IsElementPresent(SearchBy by, string locator, string logMessage)
         {
-
             return IsElementVisible(by, locator, logMessage);
         }
         
@@ -369,7 +395,6 @@ namespace WDGL
             return true;
         }
 
-
         public static bool PerformDragAndDrop(SearchBy sourceBy, string sourceLocator, SearchBy targetBy, string targetLocator, string logMessage)
         {
             loggerInfo.Instance.Message(logMessage);
@@ -377,7 +402,6 @@ namespace WDGL
         }
         public static bool PerformDragAndDrop(SearchBy sourceBy, string sourceLocator, SearchBy targetBy, string targetLocator)
         {
-            
             IWebElement source = FindElement(sourceBy, sourceLocator,10);
             IWebElement target = FindElement(targetBy, targetLocator,10);
             OpenQA.Selenium.Interactions.Actions builder = new OpenQA.Selenium.Interactions.Actions(_driver);
@@ -411,7 +435,6 @@ namespace WDGL
             }
             catch (Exception e)
             {
-
                 e = new Exception(e.Message);
                 loggerInfo.Instance.LogAppErro(e, "Unable to Find Elements By [ " + by + " ]" + " Locator [ " + locator + " ]", NLog.LogLevel.Error);
                 return false;
@@ -455,8 +478,6 @@ namespace WDGL
                                 "arguments[0].dispatchEvent(evObj);";
             IJavaScriptExecutor js = _driver as IJavaScriptExecutor;
             js.ExecuteScript(javaScript, targetElement);
-            
-
         }
         
         public static void TakeScreenShot(TestEnvInfo testInfo)
@@ -598,6 +619,7 @@ namespace WDGL
         #endregion 
 
         #region Script Executor
+        [SetUp]
         public void SetupTest(TestEnvInfo testEnvInfo)
         {
             StringBuilder verificationErrors = new StringBuilder();
@@ -623,6 +645,7 @@ namespace WDGL
             string baseURL = testEnvInfo.GetURL();
         }
         
+        [TearDown]
         public void TeardownTest(TestEnvInfo testEnvInfo)
         {
             StringBuilder verificationErrors = new StringBuilder();
@@ -666,7 +689,7 @@ namespace WDGL
             FileInfo[] files = dirInfo.GetFiles()
                                       .Where(f => extensions.Contains(f.Extension.ToLower()))
                                       .ToArray();
-            if (files.Length > 0 && testEInfo.sendResult)
+            if (testEInfo.sendResult || files.Length > 0)
             {
                 loggerInfo.Instance.LogInfo("Email Results and result files to "+testEInfo.reportingEmail);
                 MailMessage mail = new MailMessage();
@@ -690,7 +713,14 @@ namespace WDGL
                 SmtpServer.Port = 587;
                 SmtpServer.Credentials = new System.Net.NetworkCredential(testEInfo.email, testEInfo.password);
                 SmtpServer.EnableSsl = true;
-                SmtpServer.Send(mail);
+                try
+                {
+                    SmtpServer.Send(mail);
+                }
+                catch
+                {
+                    
+                }
             }
         }
 
@@ -725,6 +755,7 @@ namespace WDGL
         public string parentBrowser = System.Configuration.ConfigurationManager.AppSettings["ParentBrowser"];
         public string testUser = System.Configuration.ConfigurationManager.AppSettings["TestUser"];
         public string testPassword = System.Configuration.ConfigurationManager.AppSettings["TestPassword"];
+        public string testUserName = System.Configuration.ConfigurationManager.AppSettings["TestUserName"];
         public string email = System.Configuration.ConfigurationManager.AppSettings["Email"];
         public string password = System.Configuration.ConfigurationManager.AppSettings["Password"];
         public string reportingEmail = System.Configuration.ConfigurationManager.AppSettings["ResultReportingEmail"];
@@ -734,6 +765,7 @@ namespace WDGL
         public string deleteOldLogFiles = System.Configuration.ConfigurationManager.AppSettings["DeleteOldLogfiles"];
         public bool isRecording = System.Configuration.ConfigurationManager.AppSettings["RecordingWhileFailure"]=="true"?true:false;
         public bool EndToEnd = System.Configuration.ConfigurationManager.AppSettings["EndToEndTesting"] == "true" ? true : false;
+
         public string GetBrowser()
         {
             return parentBrowser;
@@ -746,7 +778,7 @@ namespace WDGL
         {
             if (parentBrowser.ToLower().Equals("Firefox".ToLower()))
             {
-                FirefoxProfile firefoxProfile = new FirefoxProfile(@"C:\FFProfile", true);
+                FirefoxProfile firefoxProfile = new FirefoxProfile(@"", false);
                 firefoxProfile.AddExtension(@"C:\WDTF\ThirdPartyTools\firebug-1.9.2.xpi");
                 firefoxProfile.SetPreference("extensions.firebug.currentVersion", "1.9.2"); // Avoid startup screen
                 firefoxProfile.EnableNativeEvents = true;
@@ -800,7 +832,6 @@ namespace WDGL
         {
             return networkLocation;
         }
-        
     }
     
     public sealed class loggerInfo
@@ -856,7 +887,7 @@ namespace WDGL
             //===========================================================================================//
             FileTarget fileTarget = new FileTarget();
             fileTarget.Layout = "${time} | ${level}  | ${stacktrace:topFrames=2} | ${message} ";
-            fileTarget.FileName = newLocationInResultFolder + "/" + className + "_" + logFormat + DateTime.Now.Second + ".txt";
+            fileTarget.FileName = newLocationInResultFolder + "/" + className + "_" + logFormat + DateTime.Now.Second + ".log";
             config.AddTarget("file", fileTarget);
             LoggingRule fileInfo = new LoggingRule("*", LogLevel.Info, fileTarget);
             config.LoggingRules.Add(fileInfo);
@@ -915,11 +946,20 @@ namespace WDGL
 
     public sealed class VerifyLib
     {
-        public static eResult VerifyText(string[] actualText, string[] expectedText, string requirementTags)
+        public static void AssertText(string actualText, string expectedText, StringComparison comparisonType)
         {
-            return eResult.TRUE;
+           Assert.IsTrue(actualText.Equals(expectedText, comparisonType));
+           loggerInfo.Instance.LogInfo("Verification Point :"+System.Environment.NewLine + "Expected Text : " + expectedText + System.Environment.NewLine +
+                                       "Actual Text : " + actualText + System.Environment.NewLine+
+                                       "Result : Pass"+System.Environment.NewLine);
         }
-
+        public static void AssertNumber(int actualNum, int expectedNum)
+        {
+            Assert.IsTrue(actualNum == expectedNum);
+            loggerInfo.Instance.LogInfo("Verification Point: "+System.Environment.NewLine + "Expected Num : " + expectedNum + System.Environment.NewLine +
+                                       "Actual Num : " + actualNum + System.Environment.NewLine +
+                                       "Result : Pass"+System.Environment.NewLine);
+        }
         public static string[] VerifyAndReturnBrokenImage(IWebDriver driver)
         {
             List<string> invalidSrc = new List<string>();
